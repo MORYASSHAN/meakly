@@ -1,0 +1,24 @@
+{
+  "name": "coldmailai-backend",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:gateway": "npm --workspace @coldmailai/gateway run dev",
+    "dev:auth": "npm --workspace @coldmailai/auth-service run dev",
+    "dev:users": "npm --workspace @coldmailai/user-service run dev",
+    "dev:usage": "npm --workspace @coldmailai/usage-service run dev",
+    "dev:ai": "npm --workspace @coldmailai/ai-service run dev",
+    "dev:emails": "npm --workspace @coldmailai/email-service run dev",
+    "dev:billing": "npm --workspace @coldmailai/billing-service run dev",
+    "dev:notifications": "npm --workspace @coldmailai/notification-service run dev",
+    "check": "node scripts/check.mjs"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}

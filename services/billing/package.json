@@ -1,0 +1,16 @@
+{
+  "name": "@coldmailai/billing-service",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@coldmailai/shared": "file:../../packages/shared",
+    "dotenv": "^16.4.5",
+    "mongoose": "^8.10.1",
+    "stripe": "^17.7.0",
+    "zod": "^3.24.1"
+  }
+}

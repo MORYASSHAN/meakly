@@ -1,0 +1,8 @@
+node_modules
+.env
+.env.*
+dist
+coverage
+*.log
+Thumbs.db
+package-lock.json

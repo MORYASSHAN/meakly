@@ -1,0 +1,13 @@
+{
+  "name": "@coldmailai/gateway",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@coldmailai/shared": "file:../../packages/shared",
+    "dotenv": "^16.4.5"
+  }
+}
