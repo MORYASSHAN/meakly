@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd coldmailai-frontend && npm install && npm run build",
+  "outputDirectory": "coldmailai-frontend/dist",
+  "installCommand": "echo 'skipping root install'",
+  "framework": null
+}
