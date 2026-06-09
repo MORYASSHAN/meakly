@@ -39,6 +39,18 @@ async function ensureCurrentBucket({ userId, email, plan, forcePlan = false }) {
       bucket.plan = normalizedPlan;
       bucket.limit = getPlanLimit(normalizedPlan);
     }
+    if (bucket.plan === 'free') {
+      const now = new Date();
+      const lastActivity = bucket.lastActivityAt || bucket.updatedAt || new Date();
+      const isDifferentDay = now.getUTCDate() !== lastActivity.getUTCDate() ||
+                             now.getUTCMonth() !== lastActivity.getUTCMonth() ||
+                             now.getUTCFullYear() !== lastActivity.getUTCFullYear();
+      if (isDifferentDay) {
+        bucket.used = 0;
+        bucket.reserved = 0;
+        bucket.lastActivityAt = now;
+      }
+    }
     await bucket.save();
     return bucket;
   }

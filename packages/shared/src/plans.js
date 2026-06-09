@@ -1,6 +1,6 @@
 export const PLAN_LIMITS = {
-  free: 5,
-  pro: 100,
+  free: 50,
+  pro: Number.MAX_SAFE_INTEGER,
   power: Number.MAX_SAFE_INTEGER,
 };
 

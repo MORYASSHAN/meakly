@@ -25,11 +25,11 @@ const billingSubscriptionSchema = new Schema(
       type: String,
       default: 'inactive',
     },
-    stripeCustomerId: {
+    razorpayCustomerId: {
       type: String,
       default: null,
     },
-    stripeSubscriptionId: {
+    razorpaySubscriptionId: {
       type: String,
       default: null,
     },
@@ -53,7 +53,7 @@ const billingSubscriptionSchema = new Schema(
 
 const billingWebhookEventSchema = new Schema(
   {
-    stripeEventId: {
+    razorpayEventId: {
       type: String,
       required: true,
       unique: true,

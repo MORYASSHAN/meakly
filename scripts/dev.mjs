@@ -13,19 +13,22 @@ const commands = [
   [npmCommand, ['--workspace', '@coldmailai/email-service', 'run', 'dev']],
   [npmCommand, ['--workspace', '@coldmailai/billing-service', 'run', 'dev']],
   [npmCommand, ['--workspace', '@coldmailai/notification-service', 'run', 'dev']],
+  [npmCommand, ['run', 'dev'], path.join(root, 'coldmailai-frontend')],
 ];
 
-const children = commands.map(([cmd, args]) => {
+const children = commands.map(([cmd, args, customCwd]) => {
   const child = spawn(cmd, args, {
-    cwd: root,
+    cwd: customCwd || root,
     stdio: ['ignore', 'pipe', 'pipe'],
-    shell: false,
+    shell: true,
     env: process.env,
   });
 
   const workspaceIndex = args.indexOf('--workspace');
   const label =
-    workspaceIndex >= 0 && args[workspaceIndex + 1]
+    customCwd
+      ? 'meakly-frontend'
+      : workspaceIndex >= 0 && args[workspaceIndex + 1]
       ? args[workspaceIndex + 1]
       : path.basename(args[args.length - 1] || cmd);
   child.stdout.on('data', (chunk) => process.stdout.write(`[${label}] ${chunk}`));

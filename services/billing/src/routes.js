@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import Stripe from 'stripe';
+import Razorpay from 'razorpay';
+import crypto from 'crypto';
 import {
   callService,
   createError,
@@ -18,71 +19,82 @@ import {
 import { BillingSubscription, BillingWebhookEvent } from './models.js';
 
 const checkoutSchema = z.object({
-  plan: z.enum(['pro', 'power']),
+  plan: z.enum(['pro']),
 });
 
 const plans = {
   free: {
-    name: 'free',
+    name: 'Free Plan',
     priceCents: 0,
-    emailsPerMonth: 5,
+    emailsPerMonth: 50,
     unlimited: false,
+    tagline: '50 emails per day limit.',
+    features: [
+      '50 AI email generations per day',
+      'Saved campaign history',
+      'Usage metering',
+    ],
   },
   pro: {
-    name: 'pro',
-    priceCents: 1499,
-    emailsPerMonth: 100,
-    unlimited: false,
-  },
-  power: {
-    name: 'power',
-    priceCents: 2999,
+    name: 'Paid Plan',
+    priceCents: 4900,
     emailsPerMonth: null,
     unlimited: true,
+    tagline: 'Takes 2 business days to activate.',
+    features: [
+      'Unlimited AI email generations',
+      'Requests sent directly to admin',
+      'Priority manual activation (2 business days)',
+      '24/7 dedicated support',
+    ],
   },
 };
 
-function isMockStripe() {
-  return readBoolEnv('MOCK_STRIPE', !Boolean(readEnv('STRIPE_SECRET_KEY', '')));
+function isMockRazorpay() {
+  return readBoolEnv('MOCK_RAZORPAY', !Boolean(readEnv('RAZORPAY_KEY_ID', '')));
 }
 
-function getStripeClient() {
-  const secretKey = readEnv('STRIPE_SECRET_KEY', '');
-  if (!secretKey || isMockStripe()) {
+function getRazorpayClient() {
+  const keyId = readEnv('RAZORPAY_KEY_ID', '');
+  const keySecret = readEnv('RAZORPAY_KEY_SECRET', '');
+  if (!keyId || !keySecret || isMockRazorpay()) {
     return null;
   }
 
-  return new Stripe(secretKey);
+  return new Razorpay({
+    key_id: keyId,
+    key_secret: keySecret,
+  });
 }
 
-function priceIdForPlan(plan) {
+function planIdForPlan(plan) {
   const normalized = normalizePlan(plan);
   if (normalized === 'pro') {
-    return readEnv('STRIPE_PRO_PRICE_ID', '');
+    return readEnv('RAZORPAY_PRO_PLAN_ID', 'plan_mock_pro');
   }
   if (normalized === 'power') {
-    return readEnv('STRIPE_POWER_PRICE_ID', '');
+    return readEnv('RAZORPAY_POWER_PLAN_ID', 'plan_mock_power');
   }
   return '';
 }
 
-function planFromPriceId(priceId) {
-  if (priceId && priceId === readEnv('STRIPE_POWER_PRICE_ID', '')) {
+function planFromPlanId(planId) {
+  if (planId && planId === readEnv('RAZORPAY_POWER_PLAN_ID', 'plan_mock_power')) {
     return 'power';
   }
-  if (priceId && priceId === readEnv('STRIPE_PRO_PRICE_ID', '')) {
+  if (planId && planId === readEnv('RAZORPAY_PRO_PLAN_ID', 'plan_mock_pro')) {
     return 'pro';
   }
   return 'free';
 }
 
-async function syncPlanAcrossServices({ req, userId, plan, email, stripeCustomerId, stripeSubscriptionId }) {
+async function syncPlanAcrossServices({ req, userId, plan, email, razorpayCustomerId, razorpaySubscriptionId }) {
   const payload = {
     userId,
     email,
     plan,
-    stripeCustomerId: stripeCustomerId || null,
-    stripeSubscriptionId: stripeSubscriptionId || null,
+    stripeCustomerId: razorpayCustomerId || null, // Keeping legacy parameter names for internal services compatibility
+    stripeSubscriptionId: razorpaySubscriptionId || null,
   };
 
   const authServiceUrl = readEnv('AUTH_SERVICE_URL', 'http://localhost:5001');
@@ -124,8 +136,8 @@ async function upsertBillingSubscription({
   userId,
   email,
   plan,
-  stripeCustomerId,
-  stripeSubscriptionId,
+  razorpayCustomerId,
+  razorpaySubscriptionId,
   priceId,
   status,
   currentPeriodStart,
@@ -139,8 +151,8 @@ async function upsertBillingSubscription({
         email,
         plan: normalizePlan(plan),
         status: status || 'active',
-        stripeCustomerId: stripeCustomerId || null,
-        stripeSubscriptionId: stripeSubscriptionId || null,
+        razorpayCustomerId: razorpayCustomerId || null,
+        razorpaySubscriptionId: razorpaySubscriptionId || null,
         priceId: priceId || null,
         currentPeriodStart: currentPeriodStart || null,
         currentPeriodEnd: currentPeriodEnd || null,
@@ -155,9 +167,10 @@ async function upsertBillingSubscription({
 
 async function saveWebhookEvent(event) {
   try {
+    const eventId = event.id || `evt_${Date.now()}`;
     await BillingWebhookEvent.create({
-      stripeEventId: event.id,
-      eventType: event.type,
+      razorpayEventId: eventId,
+      eventType: event.event || 'unknown',
       processedAt: new Date(),
       status: 'processed',
       payload: event,
@@ -171,34 +184,34 @@ async function saveWebhookEvent(event) {
   }
 }
 
-async function handleSubscriptionChange(req, source, eventOrSession) {
-  const stripeCustomerId = eventOrSession.customer || eventOrSession.customer_id || null;
-  const stripeSubscriptionId = eventOrSession.subscription || eventOrSession.id || null;
-  const metadata = eventOrSession.metadata || {};
-  const userId = metadata.userId || eventOrSession.client_reference_id || eventOrSession.client_reference_id || null;
-  const plan = normalizePlan(metadata.plan || planFromPriceId(eventOrSession?.items?.data?.[0]?.price?.id || eventOrSession?.display_items?.[0]?.price?.id));
+async function handleSubscriptionChange(req, source, subscription) {
+  const razorpayCustomerId = subscription.customer_id || null;
+  const razorpaySubscriptionId = subscription.id || null;
+  const metadata = subscription.notes || {};
+  const userId = metadata.userId || null;
+  const plan = normalizePlan(metadata.plan || planFromPlanId(subscription.plan_id));
 
   if (!userId) {
     throw createError(400, `Unable to resolve userId from ${source}`);
   }
 
-  const periodStart = eventOrSession.current_period_start
-    ? new Date(eventOrSession.current_period_start * 1000)
+  const periodStart = subscription.current_start
+    ? new Date(subscription.current_start * 1000)
     : null;
-  const periodEnd = eventOrSession.current_period_end
-    ? new Date(eventOrSession.current_period_end * 1000)
+  const periodEnd = subscription.current_end
+    ? new Date(subscription.current_end * 1000)
     : null;
 
-  const email = metadata.email || eventOrSession.customer_email || eventOrSession.customer_details?.email || eventOrSession.billing_email || 'unknown@local';
+  const email = metadata.email || 'unknown@local';
 
   await upsertBillingSubscription({
     userId,
     email,
     plan,
-    stripeCustomerId,
-    stripeSubscriptionId,
-    priceId: eventOrSession.items?.data?.[0]?.price?.id || metadata.priceId || null,
-    status: eventOrSession.status || 'active',
+    razorpayCustomerId,
+    razorpaySubscriptionId,
+    priceId: subscription.plan_id || null,
+    status: subscription.status || 'active',
     currentPeriodStart: periodStart,
     currentPeriodEnd: periodEnd,
   });
@@ -208,26 +221,34 @@ async function handleSubscriptionChange(req, source, eventOrSession) {
     userId,
     plan,
     email,
-    stripeCustomerId,
-    stripeSubscriptionId,
+    razorpayCustomerId,
+    razorpaySubscriptionId,
   });
 }
 
 async function handleWebhookEvent(req, res, next) {
   try {
-    const secret = readEnv('STRIPE_WEBHOOK_SECRET', '');
-    const stripe = getStripeClient();
-    let event;
+    const secret = readEnv('RAZORPAY_WEBHOOK_SECRET', '');
+    const razorpay = getRazorpayClient();
+    let event = req.body || {};
 
-    if (stripe && secret && !isMockStripe()) {
-      const signature = req.headers['stripe-signature'];
+    const rawBody = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body || {});
+
+    if (razorpay && secret && !isMockRazorpay()) {
+      const signature = req.headers['x-razorpay-signature'];
       if (!signature) {
-        throw createError(400, 'Missing Stripe signature');
+        throw createError(400, 'Missing Razorpay signature');
       }
-      event = stripe.webhooks.constructEvent(req.rawBody, signature, secret);
+
+      const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(rawBody)
+        .digest('hex');
+
+      if (expectedSignature !== signature) {
+        throw createError(400, 'Invalid Razorpay signature');
+      }
     } else {
-      const bodyText = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body || {});
-      event = JSON.parse(bodyText || '{}');
       if (!event.id) {
         event.id = `mock_${Date.now()}`;
       }
@@ -238,37 +259,36 @@ async function handleWebhookEvent(req, res, next) {
       return sendSuccess(res, { received: true, duplicate: true });
     }
 
-    if (event.type === 'checkout.session.completed') {
-      await handleSubscriptionChange(req, 'checkout.session.completed', event.data.object);
-    }
+    const subscription = event.payload?.subscription?.entity;
 
-    if (event.type === 'customer.subscription.updated') {
-      await handleSubscriptionChange(req, 'customer.subscription.updated', event.data.object);
-    }
+    if (subscription) {
+      if (['subscription.activated', 'subscription.charged'].includes(event.event)) {
+        await handleSubscriptionChange(req, event.event, subscription);
+      }
 
-    if (event.type === 'customer.subscription.deleted') {
-      const subscription = event.data.object;
-      const userId = subscription.metadata?.userId || subscription.client_reference_id;
-      if (userId) {
-        await upsertBillingSubscription({
-          userId,
-          email: subscription.metadata?.email || subscription.customer_email || 'unknown@local',
-          plan: 'free',
-          stripeCustomerId: subscription.customer || null,
-          stripeSubscriptionId: null,
-          priceId: null,
-          status: 'canceled',
-          currentPeriodStart: null,
-          currentPeriodEnd: null,
-        });
+      if (['subscription.cancelled', 'subscription.halted'].includes(event.event)) {
+        const userId = subscription.notes?.userId;
+        if (userId) {
+          await upsertBillingSubscription({
+            userId,
+            email: subscription.notes?.email || 'unknown@local',
+            plan: 'free',
+            razorpayCustomerId: subscription.customer_id || null,
+            razorpaySubscriptionId: null,
+            priceId: null,
+            status: 'canceled',
+            currentPeriodStart: null,
+            currentPeriodEnd: null,
+          });
 
-        await syncPlanAcrossServices({
-          req,
-          userId,
-          plan: 'free',
-          stripeCustomerId: subscription.customer || null,
-          stripeSubscriptionId: null,
-        });
+          await syncPlanAcrossServices({
+            req,
+            userId,
+            plan: 'free',
+            razorpayCustomerId: subscription.customer_id || null,
+            razorpaySubscriptionId: null,
+          });
+        }
       }
     }
 
@@ -315,15 +335,15 @@ async function getCurrentBilling(req) {
       ? {
           plan: billing.plan,
           status: billing.status,
-          stripeCustomerId: billing.stripeCustomerId,
-          stripeSubscriptionId: billing.stripeSubscriptionId,
+          stripeCustomerId: billing.razorpayCustomerId, // compatibility
+          stripeSubscriptionId: billing.razorpaySubscriptionId, // compatibility
           priceId: billing.priceId,
         }
       : {
           plan: profile?.plan || 'free',
           status: 'inactive',
-          stripeCustomerId: profile?.stripeCustomerId || null,
-          stripeSubscriptionId: profile?.stripeSubscriptionId || null,
+          stripeCustomerId: profile?.stripeCustomerId || null, // compatibility
+          stripeSubscriptionId: profile?.stripeSubscriptionId || null, // compatibility
           priceId: null,
         },
     profile,
@@ -347,52 +367,86 @@ export function registerBillingRoutes(app) {
   app.post('/checkout', requireAuth, validateBody(checkoutSchema), async (req, res, next) => {
     try {
       const { plan } = req.validatedBody;
-      if (!isPowerOrPro(plan)) {
-        throw createError(400, 'Only pro and power plans can be purchased');
-      }
-
-      const stripe = getStripeClient();
-      if (!stripe) {
-        return sendSuccess(res, {
-          url: `https://mock.stripe.local/checkout?plan=${plan}&userId=${encodeURIComponent(req.auth.sub)}`,
-          mock: true,
-        });
-      }
-
-      const priceId = priceIdForPlan(plan);
-      if (!priceId) {
-        throw createError(500, `Missing Stripe price ID for ${plan}`);
-      }
-
-      const checkoutSession = await stripe.checkout.sessions.create({
-        mode: 'subscription',
-        line_items: [
-          {
-            price: priceId,
-            quantity: 1,
-          },
-        ],
-        success_url: readEnv('STRIPE_SUCCESS_URL', 'http://localhost:5000/api/v1/billing/status?success=true'),
-        cancel_url: readEnv('STRIPE_CANCEL_URL', 'http://localhost:5000/api/v1/billing/status?canceled=true'),
-        customer_email: req.auth.email,
-        metadata: {
-          userId: req.auth.sub,
-          plan,
-          email: req.auth.email,
-        },
-        subscription_data: {
-          metadata: {
-            userId: req.auth.sub,
-            plan,
-            email: req.auth.email,
-          },
-        },
+      
+      const notificationServiceUrl = readEnv('NOTIFICATION_SERVICE_URL', 'http://localhost:5007');
+      
+      // Update subscription record to pending_paid state
+      await upsertBillingSubscription({
+        userId: req.auth.sub,
+        email: req.auth.email,
+        plan: 'free', // stays free usage limit until manual activation
+        status: 'pending_paid',
       });
+      
+      // Trigger notification email to admin itsmoryasshan@gmail.com
+      try {
+        await callService({
+          baseUrl: notificationServiceUrl,
+          path: '/internal/notifications/email',
+          method: 'POST',
+          body: {
+            to: 'itsmoryasshan@gmail.com',
+            subject: `New Paid Plan Subscription Request - ${req.auth.email}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+                <h2>Paid Plan Request</h2>
+                <p>A user has requested to upgrade to the Paid Plan ($49/month).</p>
+                <ul>
+                  <li><strong>User ID:</strong> ${req.auth.sub}</li>
+                  <li><strong>Name:</strong> ${req.auth.name || 'N/A'}</li>
+                  <li><strong>Email:</strong> ${req.auth.email}</li>
+                  <li><strong>Requested At:</strong> ${new Date().toISOString()}</li>
+                </ul>
+                <p>Please review the request and activate their plan within 2 business days.</p>
+              </div>
+            `,
+            text: `Paid Plan Request:\nUser ID: ${req.auth.sub}\nEmail: ${req.auth.email}\nRequested At: ${new Date().toISOString()}`,
+            template: 'admin-notification',
+          },
+          callerService: 'billing-service',
+          targetService: 'notification-service',
+          requestId: req.requestId,
+        });
+      } catch (emailErr) {
+        logger.error('Failed to send admin notification email', { error: emailErr.message });
+      }
+
+      // Trigger confirmation email to user letting them know payment was received and will be activated within 2 business days
+      try {
+        await callService({
+          baseUrl: notificationServiceUrl,
+          path: '/internal/notifications/email',
+          method: 'POST',
+          body: {
+            to: req.auth.email,
+            subject: 'We received your payment - ColdMail AI Pro',
+            html: `
+              <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <h2 style="color: #4f46e5; margin-bottom: 20px;">Payment Received!</h2>
+                <p>Hello ${req.auth.name || 'there'},</p>
+                <p>Thank you for upgrading to <strong>ColdMail AI Pro</strong>! We have successfully received your subscription request / payment of <strong>$49/month</strong>.</p>
+                <p>Since we verify and provision accounts manually to ensure maximum deliverability and dedicated priority support, your pro access will be activated within <strong>2 business days</strong>.</p>
+                <p>We will send you another email with your login details and instructions as soon as your account is ready.</p>
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 0.875rem; color: #666;">
+                  <p>Need help? Simply reply to this email or contact support at <a href="mailto:itsmoryasshan@gmail.com">itsmoryasshan@gmail.com</a>.</p>
+                  <p>Best regards,<br/>The ColdMail AI Team</p>
+                </div>
+              </div>
+            `,
+            text: `Hello ${req.auth.name || 'there'},\n\nThank you for upgrading to ColdMail AI Pro! We have successfully received your payment of $49/month.\n\nYour access will be manually activated within 2 business days. We will send you an email as soon as it's ready.\n\nBest regards,\nColdMail AI Team`,
+            template: 'payment-received',
+          },
+          callerService: 'billing-service',
+          targetService: 'notification-service',
+          requestId: req.requestId,
+        });
+      } catch (userEmailErr) {
+        logger.error('Failed to send user payment confirmation email', { error: userEmailErr.message });
+      }
 
       return sendSuccess(res, {
-        url: checkoutSession.url,
-        id: checkoutSession.id,
-        mock: false,
+        message: 'Your request for the Paid Plan ($49/month) has been submitted! It will take up to 2 business days to process and activate your access. The administrator has been notified.',
+        status: 'pending_paid',
       });
     } catch (error) {
       return next(error);
@@ -402,28 +456,16 @@ export function registerBillingRoutes(app) {
   app.post('/portal', requireAuth, async (req, res, next) => {
     try {
       const current = await BillingSubscription.findOne({ userId: req.auth.sub });
-      const customerId = current?.stripeCustomerId;
+      const subscriptionId = current?.razorpaySubscriptionId;
 
-      if (!customerId) {
-        throw createError(404, 'No billing customer has been created yet');
+      if (!subscriptionId) {
+        throw createError(404, 'No billing subscription has been created yet');
       }
-
-      const stripe = getStripeClient();
-      if (!stripe) {
-        return sendSuccess(res, {
-          url: `https://mock.stripe.local/portal?customerId=${encodeURIComponent(customerId)}`,
-          mock: true,
-        });
-      }
-
-      const portalSession = await stripe.billingPortal.sessions.create({
-        customer: customerId,
-        return_url: readEnv('STRIPE_SUCCESS_URL', 'http://localhost:5000/api/v1/billing/status'),
-      });
 
       return sendSuccess(res, {
-        url: portalSession.url,
-        mock: false,
+        message: 'Subscriptions can be cancelled or managed via dashboard or support.',
+        subscriptionId,
+        mock: true,
       });
     } catch (error) {
       return next(error);

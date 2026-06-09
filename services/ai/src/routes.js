@@ -135,13 +135,16 @@ async function runGroqJson({
   }
 
   try {
-    const completion = await client.responses.create({
+    const completion = await client.chat.completions.create({
       model,
-      instructions: SYSTEM_PROMPT,
-      input: prompt,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      response_format: { type: 'json_object' },
     });
 
-    const content = completion.output_text || '';
+    const content = completion.choices[0]?.message?.content || '';
     const parsed = extractJsonObject(content);
 
     await AiRequestLog.create({
