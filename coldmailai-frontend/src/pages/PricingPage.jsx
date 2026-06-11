@@ -101,16 +101,15 @@ export default function PricingPage() {
     setCheckingOut(plan.id);
     try {
       const data = await createCheckout(plan.slug || plan.id || plan.name);
-      const url = data.url || data.checkoutUrl;
-      if (url) {
-        window.location.href = url;
-      } else if (data.message) {
-        toast.success(data.message, { duration: 6000 });
-        try {
-          const status = await getBillingStatus();
-          setBillingStatus(status);
-        } catch {}
-      }
+      // Backend uses a manual-pay flow: no redirect URL, just a confirmation message
+      const msg =
+        data.message ||
+        'Your upgrade request has been submitted. Activation takes up to 2 business days.';
+      toast.success(msg, { duration: 8000 });
+      try {
+        const status = await getBillingStatus();
+        setBillingStatus(status);
+      } catch { }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Upgrade request failed');
     } finally {

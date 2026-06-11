@@ -36,5 +36,8 @@
     "three": "^0.184.0",
     "vite": "^8.0.16",
     "zustand": "^4.5.7"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
   }
 }
