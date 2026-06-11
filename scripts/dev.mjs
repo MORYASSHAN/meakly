@@ -48,4 +48,4 @@ const shutdown = () => {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-process.stdout.write('Started ColdMailAI backend services.\n');
+process.stdout.write('Started ColdMailAI backend services & frontend.\n');

@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "dev:all": "node scripts/dev.mjs",
     "dev:gateway": "npm --workspace @coldmailai/gateway run dev",
     "dev:auth": "npm --workspace @coldmailai/auth-service run dev",
     "dev:users": "npm --workspace @coldmailai/user-service run dev",

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Building2, Check, ChevronDown, Rocket, Zap } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { createCheckout, getBillingStatus, getPlans } from '../api';
 import useStore from '../store/useStore';
 
@@ -104,7 +105,7 @@ export default function PricingPage() {
       // Backend uses a manual-pay flow: no redirect URL, just a confirmation message
       const msg =
         data.message ||
-        'Your upgrade request has been submitted. Activation takes up to 2 business days.';
+        'Your upgrade request has been submitted. Activation takes up to 3 business days.';
       toast.success(msg, { duration: 8000 });
       try {
         const status = await getBillingStatus();

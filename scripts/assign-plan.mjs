@@ -194,11 +194,11 @@ async function run() {
                 <div style="background-color: #f8fafc; border-left: 4px solid #4f46e5; padding: 15px; margin-bottom: 20px; border-radius: 0 4px 4px 0;">
                   <strong>Create your first Campaign:</strong> Log in and navigate to the generate page to generate high-performing outreach emails using our advanced AI templates.
                 </div>
-
+ 
                 <p style="margin-bottom: 25px;">
                   <a href="${loginLink}" style="background-color: #4f46e5; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; display: inline-block;">Log in to ColdMail AI</a>
                 </p>
-
+ 
                 <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 0.875rem; color: #666;">
                   <p>Have questions? Simply reply to this email, and we will get back to you immediately.</p>
                   <p>Best regards,<br/>The ColdMail AI Team</p>

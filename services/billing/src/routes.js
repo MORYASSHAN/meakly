@@ -28,9 +28,9 @@ const plans = {
     priceCents: 0,
     emailsPerMonth: 50,
     unlimited: false,
-    tagline: '50 emails per day limit.',
+    tagline: '50 emails limit.',
     features: [
-      '50 AI email generations per day',
+      '50 AI email generations limit',
       'Saved campaign history',
       'Usage metering',
     ],
@@ -40,11 +40,11 @@ const plans = {
     priceCents: 4900,
     emailsPerMonth: null,
     unlimited: true,
-    tagline: 'Takes 2 business days to activate.',
+    tagline: 'Takes 3 business days to activate.',
     features: [
       'Unlimited AI email generations',
       'Requests sent directly to admin',
-      'Priority manual activation (2 business days)',
+      'Priority manual activation (3 business days)',
       '24/7 dedicated support',
     ],
   },
@@ -397,7 +397,7 @@ export function registerBillingRoutes(app) {
                   <li><strong>Email:</strong> ${req.auth.email}</li>
                   <li><strong>Requested At:</strong> ${new Date().toISOString()}</li>
                 </ul>
-                <p>Please review the request and activate their plan within 2 business days.</p>
+                <p>Please review the request and activate their plan within 3 business days.</p>
               </div>
             `,
             text: `Paid Plan Request:\nUser ID: ${req.auth.sub}\nEmail: ${req.auth.email}\nRequested At: ${new Date().toISOString()}`,
@@ -411,7 +411,7 @@ export function registerBillingRoutes(app) {
         logger.error('Failed to send admin notification email', { error: emailErr.message });
       }
 
-      // Trigger confirmation email to user letting them know payment was received and will be activated within 2 business days
+      // Trigger confirmation email to user letting them know payment was received and will be activated within 3 business days
       try {
         await callService({
           baseUrl: notificationServiceUrl,
@@ -425,7 +425,7 @@ export function registerBillingRoutes(app) {
                 <h2 style="color: #4f46e5; margin-bottom: 20px;">Payment Received!</h2>
                 <p>Hello ${req.auth.name || 'there'},</p>
                 <p>Thank you for upgrading to <strong>ColdMail AI Pro</strong>! We have successfully received your subscription request / payment of <strong>$49/month</strong>.</p>
-                <p>Since we verify and provision accounts manually to ensure maximum deliverability and dedicated priority support, your pro access will be activated within <strong>2 business days</strong>.</p>
+                <p>Since we verify and provision accounts manually to ensure maximum deliverability and dedicated priority support, your pro access will be activated within <strong>3 business days</strong>.</p>
                 <p>We will send you another email with your login details and instructions as soon as your account is ready.</p>
                 <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 0.875rem; color: #666;">
                   <p>Need help? Simply reply to this email or contact support at <a href="mailto:itsmoryasshan@gmail.com">itsmoryasshan@gmail.com</a>.</p>
@@ -433,7 +433,7 @@ export function registerBillingRoutes(app) {
                 </div>
               </div>
             `,
-            text: `Hello ${req.auth.name || 'there'},\n\nThank you for upgrading to ColdMail AI Pro! We have successfully received your payment of $49/month.\n\nYour access will be manually activated within 2 business days. We will send you an email as soon as it's ready.\n\nBest regards,\nColdMail AI Team`,
+            text: `Hello ${req.auth.name || 'there'},\n\nThank you for upgrading to ColdMail AI Pro! We have successfully received your payment of $49/month.\n\nYour access will be manually activated within 3 business days. We will send you an email as soon as it's ready.\n\nBest regards,\nColdMail AI Team`,
             template: 'payment-received',
           },
           callerService: 'billing-service',
@@ -445,7 +445,7 @@ export function registerBillingRoutes(app) {
       }
 
       return sendSuccess(res, {
-        message: 'Your request for the Paid Plan ($49/month) has been submitted! It will take up to 2 business days to process and activate your access. The administrator has been notified.',
+        message: 'Your request for the Paid Plan ($49/month) has been submitted! It will take up to 3 business days to process and activate your access. The administrator has been notified.',
         status: 'pending_paid',
       });
     } catch (error) {
