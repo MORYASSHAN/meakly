@@ -21,7 +21,27 @@ const planIcon = (name = '') => {
 };
 
 const normalizePlans = (data) => {
-  let raw = data?.plans ?? data?.items ?? data?.data ?? data ?? [];
+  let raw = data?.plans ?? data?.items ?? data?.data ?? data;
+  if (!raw || (typeof raw === 'object' && Object.keys(raw).length === 0)) {
+    // Return default offline plans as fallback if API returned empty
+    raw = {
+      free: {
+        name: 'Free Plan',
+        priceCents: 0,
+        emailsPerMonth: 50,
+        unlimited: false,
+        tagline: '50 emails limit.',
+      },
+      pro: {
+        name: 'Paid Plan',
+        priceCents: 4900,
+        emailsPerMonth: null,
+        unlimited: true,
+        tagline: 'Takes 3 business days to activate.',
+      }
+    };
+  }
+
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     raw = Object.entries(raw).map(([slug, plan]) => ({
       id: slug,
@@ -75,7 +95,7 @@ export default function PricingPage() {
         const data = await getPlans();
         if (active) setPlans(normalizePlans(data));
       } catch {
-        if (active) setPlans([]);
+        if (active) setPlans(normalizePlans(null));
       } finally {
         if (active) setLoading(false);
       }
