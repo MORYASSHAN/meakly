@@ -21,17 +21,24 @@ const planIcon = (name = '') => {
 };
 
 const normalizePlans = (data) => {
-  const raw = data.plans || data.items || data.data || [];
-  if (Array.isArray(raw)) return raw;
-  return Object.entries(raw).map(([slug, plan]) => ({
-    id: slug,
-    slug,
-    features: [
-      plan.unlimited ? 'Unlimited AI email generations' : `${plan.emailsPerMonth} AI email generations per month`,
+  let raw = data?.plans ?? data?.items ?? data?.data ?? data ?? [];
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    raw = Object.entries(raw).map(([slug, plan]) => ({
+      id: slug,
+      slug,
+      ...plan,
+    }));
+  }
+  if (!Array.isArray(raw)) return [];
+  return raw.map((plan) => ({
+    id: plan.id || plan.slug || plan.name?.toLowerCase(),
+    slug: plan.slug || plan.id || plan.name?.toLowerCase(),
+    features: plan.features || [
+      plan.unlimited ? 'Unlimited AI email generations' : `${plan.emailsPerMonth ?? 50} AI email generations`,
       'Saved campaign history',
       'Usage metering and plan sync',
     ],
-    description: slug === 'power' ? 'For daily outbound teams.' : slug === 'pro' ? 'For serious prospecting.' : 'For testing Meakly.',
+    description: plan.description || (plan.slug === 'pro' ? 'For serious prospecting.' : plan.slug === 'power' ? 'For daily outbound teams.' : 'For testing Meakly.'),
     ...plan,
   }));
 };
