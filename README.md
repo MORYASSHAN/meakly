@@ -1,4 +1,4 @@
-# ColdMailAI Backend
+# ColdMailAI 
 
 Backend-first, microservice-ready scaffold for a cold email SaaS.
 
