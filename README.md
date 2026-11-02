@@ -1,6 +1,6 @@
 # ColdMailAI 
 
-Backend-first, microservice-ready scaffold for a cold email SaaS.
+Backend-first, microservice-ready scaffold for a cold email SaaS Product.
 
 ## What is included
 
