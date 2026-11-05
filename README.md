@@ -2,7 +2,7 @@
 
 Backend-first, microservice-ready scaffold for a cold email SaaS Product.
 
-## What is included
+# What is included
 
 - API gateway with request IDs, proxying, and system health aggregation
 - Auth service with signup, login, refresh, logout, email verification, password reset
